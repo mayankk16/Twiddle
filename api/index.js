@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const cookieParser = require('cookie-parser');
 const User = require('./models/user_model');
 
 dotenv.config();
@@ -23,6 +24,8 @@ const bcryptSalt = bcrypt.genSaltSync(10);
 
 
 const app = express();
+app.use(express.json());
+app.use(cookieParser());
 app.use(cors({
     credentials: true,
     origin: process.env.CLIENT_URL
@@ -47,6 +50,9 @@ app.get('/test', (req,res) => {
 
   app.post('/login', async (req,res) => {
     const {username, password} = req.body;
+    if (!username || !password) {
+      return res.status(400).json('username and password are required');
+    }
     const foundUser = await User.findOne({username});
     if (foundUser) {
       const passOk = bcrypt.compareSync(password, foundUser.password);
@@ -57,11 +63,19 @@ app.get('/test', (req,res) => {
           });
         });
       }
+      else {
+        res.status(401).json('wrong password');
+      }
+    } else {
+      res.status(404).json('user not found');
     }
   });
 
   app.post('/register', async (req,res) => {
     const {username,password} = req.body;
+    if (!username || !password) {
+      return res.status(400).json('username and password are required');
+    }
     try{
         const hashedPassword = bcrypt.hashSync(password, bcryptSalt);
         const createdUser = await User.create({
