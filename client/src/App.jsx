@@ -1,10 +1,14 @@
-import './App.css'
+import axios from "axios";
+import {UserContextProvider} from "./User_Context";
+import Routes from "./Routes";
 
 function App() {
-  const [count, setCount] = useState(0)
-
+  axios.defaults.baseURL = 'http://localhost:4040';
+  axios.defaults.withCredentials = true;
   return (
-    <div>test</div>
+    <UserContextProvider>
+      <Routes />
+    </UserContextProvider>
   )
 }
 
