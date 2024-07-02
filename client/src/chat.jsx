@@ -1,54 +1,52 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import {useContext, useEffect, useRef, useState} from "react";
 import Avatar from "./avatar.jsx";
-import Logo from "./logo.jsx";
-import Contact from "./Contact";
-import { UserContext } from "./User_Context.jsx";
-import { uniqBy } from "lodash";
+import Logo from "./logo";
+import {UserContext} from "./User_Context.jsx";
+import {uniqBy} from "lodash";
 import axios from "axios";
+import Contact from "./Contact";
 
 export default function Chat() {
-  const [ws, setWs] = useState(null);
-  const [onlinePeople, setOnlinePeople] = useState({});
+  const [ws,setWs] = useState(null);
+  const [onlinePeople,setOnlinePeople] = useState({});
   const [offlinePeople,setOfflinePeople] = useState({});
-  const [selectedUserId, setSelectedUserId] = useState(null);
-  const [newMessageText, setNewMessageText] = useState('');
-  const [messages, setMessages] = useState([]);
-  const { username, id,setId,setUsername } = useContext(UserContext);
+  const [selectedUserId,setSelectedUserId] = useState(null);
+  const [newMessageText,setNewMessageText] = useState('');
+  const [messages,setMessages] = useState([]);
+  const {username,id,setId,setUsername} = useContext(UserContext);
   const divUnderMessages = useRef();
-
   useEffect(() => {
+    connectToWs();
+  }, [selectedUserId]);
+  function connectToWs() {
+    const ws = new WebSocket('ws://localhost:4040');
+    setWs(ws);
+    ws.addEventListener('message', handleMessage);
+    ws.addEventListener('close', () => {
+      setTimeout(() => {
+        console.log('Disconnected. Trying to reconnect.');
         connectToWs();
-      }, [selectedUserId]);
-      function connectToWs() {
-        const ws = new WebSocket('ws://localhost:4040');
-        setWs(ws);
-        ws.addEventListener('message', handleMessage);
-        ws.addEventListener('close', () => {
-          setTimeout(() => {
-            console.log('Disconnected. Trying to reconnect.');
-            connectToWs();
-          }, 1000);
-        });
-      }
-
+      }, 1000);
+    });
+  }
   function showOnlinePeople(peopleArray) {
     const people = {};
-    peopleArray.forEach(({ userId, username }) => {
+    peopleArray.forEach(({userId,username}) => {
       people[userId] = username;
     });
     setOnlinePeople(people);
   }
-
   function handleMessage(ev) {
     const messageData = JSON.parse(ev.data);
-    console.log({ ev, messageData });
+    console.log({ev,messageData});
     if ('online' in messageData) {
       showOnlinePeople(messageData.online);
     } else if ('text' in messageData) {
-      setMessages(prev => uniqBy([...prev, { ...messageData }], '_id'));
+      if (messageData.sender === selectedUserId) {
+        setMessages(prev => ([...prev, {...messageData}]));
+      }
     }
   }
-
   function logout() {
     axios.post('/logout').then(() => {
       setWs(null);
@@ -56,21 +54,6 @@ export default function Chat() {
       setUsername(null);
     });
   }
-
-  // function sendMessage(ev) {
-  //   ev.preventDefault();
-  //   ws.send(JSON.stringify({
-  //     recipient: selectedUserId,
-  //     text: newMessageText,
-  //   }));
-  //   setNewMessageText('');
-  //   setMessages(prev => ([...prev,{
-  //     text: newMessageText,
-  //     sender: id,
-  //     recipient: selectedUserId,
-  //     _id: Date.now(),
-  //   }]));
-  // }
   function sendMessage(ev, file = null) {
     if (ev) ev.preventDefault();
     ws.send(JSON.stringify({
@@ -131,22 +114,23 @@ export default function Chat() {
     }
   }, [selectedUserId]);
 
-  const onlinePeopleExclOurUser = { ...onlinePeople };
+  const onlinePeopleExclOurUser = {...onlinePeople};
   delete onlinePeopleExclOurUser[id];
+
   const messagesWithoutDupes = uniqBy(messages, '_id');
 
   return (
-    <div  className="flex h-screen">
-      <div  className="bg-white w-1/3 flex flex-col">
-      <div className="flex-grow">
-        <Logo />
-        {Object.keys(onlinePeopleExclOurUser).map(userId => (
+    <div className="flex h-screen">
+      <div className="bg-white w-1/3 flex flex-col">
+        <div className="flex-grow">
+          {/* <Logo /> */}
+          {Object.keys(onlinePeopleExclOurUser).map(userId => (
             <Contact
               key={userId}
               id={userId}
               online={true}
               username={onlinePeopleExclOurUser[userId]}
-              onClick={() => setSelectedUserId(userId)}
+              onClick={() => {setSelectedUserId(userId);console.log({userId})}}
               selected={userId === selectedUserId} />
           ))}
           {Object.keys(offlinePeople).map(userId => (
@@ -158,20 +142,19 @@ export default function Chat() {
               onClick={() => setSelectedUserId(userId)}
               selected={userId === selectedUserId} />
           ))}
-      </div>
-      <div className="p-2 text-center flex items-center justify-center">
-        <span className="mr-2 text-sm text-gray-600 flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
-          </svg>
+        </div>
+        <div className="p-2 text-center flex items-center justify-center">
+          <span className="mr-2 text-sm text-gray-600 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clipRule="evenodd" />
+            </svg>
             {username}
           </span>
-        <button
+          <button
             onClick={logout}
             className="text-sm bg-blue-100 py-1 px-2 text-gray-500 border rounded-sm">logout</button>
+        </div>
       </div>
-    </div>
-    
       <div className="flex flex-col bg-blue-50 w-2/3 p-2">
         <div className="flex-grow">
           {!selectedUserId && (
@@ -183,8 +166,8 @@ export default function Chat() {
             <div className="relative h-full">
               <div className="overflow-y-scroll absolute top-0 left-0 right-0 bottom-2">
                 {messagesWithoutDupes.map(message => (
-                  <div key={message._id} className={(message.sender === id ? 'text-right' : 'text-left')}>
-                    <div className={"text-left inline-block p-2 my-2 rounded-md text-sm " + (message.sender === id ? 'bg-blue-500 text-white' : 'bg-white text-gray-500')}>
+                  <div key={message._id} className={(message.sender === id ? 'text-right': 'text-left')}>
+                    <div className={"text-left inline-block p-2 my-2 rounded-md text-sm " +(message.sender === id ? 'bg-blue-500 text-white':'bg-white text-gray-500')}>
                       {message.text}
                       {message.file && (
                         <div className="">
@@ -206,14 +189,12 @@ export default function Chat() {
         </div>
         {!!selectedUserId && (
           <form className="flex gap-2" onSubmit={sendMessage}>
-            <input
-              type="text"
-              value={newMessageText}
-              onChange={ev => setNewMessageText(ev.target.value)}
-              placeholder="Type your message here"
-              className="bg-white flex-grow border rounded-sm p-2"
-            />
-              <label className="bg-blue-200 p-2 text-gray-600 cursor-pointer rounded-sm border border-blue-200">
+            <input type="text"
+                   value={newMessageText}
+                   onChange={ev => setNewMessageText(ev.target.value)}
+                   placeholder="Type your message here"
+                   className="bg-white flex-grow border rounded-sm p-2"/>
+            <label className="bg-blue-200 p-2 text-gray-600 cursor-pointer rounded-sm border border-blue-200">
               <input type="file" className="hidden" onChange={sendFile} />
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                 <path fillRule="evenodd" d="M18.97 3.659a2.25 2.25 0 00-3.182 0l-10.94 10.94a3.75 3.75 0 105.304 5.303l7.693-7.693a.75.75 0 011.06 1.06l-7.693 7.693a5.25 5.25 0 11-7.424-7.424l10.939-10.94a3.75 3.75 0 115.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 015.91 15.66l7.81-7.81a.75.75 0 011.061 1.06l-7.81 7.81a.75.75 0 001.054 1.068L18.97 6.84a2.25 2.25 0 000-3.182z" clipRule="evenodd" />
@@ -230,4 +211,5 @@ export default function Chat() {
     </div>
   );
 }
+
 
